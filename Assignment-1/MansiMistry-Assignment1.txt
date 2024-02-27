@@ -1,0 +1,179 @@
+Done by: Mansi Mistry, CWID: 20011402
+------------------------------------------------------------------------------------------------
+Query 1:
+WITH 
+part1 as (
+	SELECT prod, max(quant) as max_q, min(quant) as min_q, avg(quant) as avg_q
+	FROM sales
+	GROUP BY prod
+),
+part2 as (
+	SELECT s.prod, s.cust as max_cust, s.date as max_date, s.state as max_st
+	FROM part1, sales s
+	WHERE part1.prod = s.prod and part1.max_q = s.quant
+),
+part3 as (
+	SELECT s.prod, s.cust as min_cust, s.date as min_date, s.state as min_st
+	FROM part1, sales s
+	WHERE part1.prod = s.prod and part1.min_q = s.quant
+)
+select part1.prod as product, max_q, max_cust, max_date, max_st, min_q, min_cust, min_date, min_st, avg_q
+from part1, part2, part3
+where part1.prod = part2.prod and part2.prod = part3.prod
+
+------------------------------------------------------------------------------------------------
+Query 2:
+WITH
+data_ny as (
+	select cust, prod, max(quant) as ny_max
+	from sales
+	where state = 'NY'
+	group by cust, prod
+	order by cust
+),
+data_nj as (
+	select cust, prod, min(quant) as nj_min
+	from sales
+	where state = 'NJ' and year > 2000
+	group by cust, prod
+	order by cust
+),
+data_ct as (
+	select cust, prod, min(quant) as ct_min
+	from sales
+	where state = 'CT' and year > 2000
+	group by cust, prod
+	order by cust
+),
+part1 as (
+	select data_ny.cust, data_ny.prod, ny_max, concat(sales.month,'/',sales.day,'/',sales.year) as date
+	from data_ny, sales
+	where sales.state = 'NY' and sales.quant = ny_max and data_ny.cust = sales.cust and data_ny.prod = sales.prod
+),
+part2 as (
+select data_nj.cust, data_nj.prod, nj_min, concat(sales.month,'/',sales.day,'/',sales.year) as date
+	from data_nj, sales
+	where sales.state = 'NJ' and sales.quant = nj_min and data_nj.cust = sales.cust and data_nj.prod = sales.prod
+),
+part3 as (
+select data_ct.cust, data_ct.prod, ct_min, concat(sales.month,'/',sales.day,'/',sales.year) as date
+	from data_ct, sales
+	where sales.state = 'CT' and sales.quant = ct_min and data_ct.cust = sales.cust and data_ct.prod = sales.prod
+)
+select p1.cust, p1.prod, ny_max, p1.date, nj_min, p2.date, ct_min, p3.date
+from part1 p1, part2 p2, part3 p3
+where p1.prod = p2.prod and p1.cust = p2.cust and p2.prod = p3.prod and p2.cust = p3.cust
+
+------------------------------------------------------------------------------------------------
+Query 3:
+WITH
+months as (
+	select distinct month 
+ 	from sales 
+),
+sale as(
+	select sales.month, state, sum(quant) as sum
+	from months, sales 
+	where months.month = sales.month 
+	group by sales.month, state
+),
+most_popular as (
+	select distinct on (month) month, state as most_popular_st, sum as most_pop_total_q
+	from sale 
+	order by month, sum desc
+),
+least_popular as (
+	select distinct on (month) month, state as least_popular_st, sum as least_pop_total_q 
+	from sale 
+	order by month, sum asc
+)
+select most_popular.month, most_popular_st, most_pop_total_q, least_popular_st, least_pop_total_q 
+from most_popular, least_popular 
+where most_popular.month = least_popular.month
+
+------------------------------------------------------------------------------------------------
+Query 4:
+WITH
+part1 as (
+	select cust, prod, sum(quant) as total
+	from sales
+	group by cust, prod
+),
+part2 as (
+	select cust, max(total) as max_t, min(total) as min_t
+	from part1
+	group by cust
+),
+mostfavprod as (
+	select part1.cust, part1.prod
+	from part1, part2
+	where part1.cust = part2.cust and part1.total = part2.max_t
+),
+leastfavprod as (
+	select part1.cust, part1.prod
+	from part1, part2
+	where part1.cust = part2.cust and part1.total = part2.min_t
+),
+part3 as (
+	select cust, state, sum(quant) as total
+	from sales
+	group by cust, state
+),
+part4 as (
+	select cust, max(total) as max_t, min(total) as min_t
+	from part3
+	group by cust
+),
+mostfavstate as (
+	select part3.cust, part3.state
+	from part3, part4
+	where part3.cust = part4.cust and part3.total = part4.max_t
+),
+leastfavstate as (
+	select part3.cust, part3.state
+	from part3, part4
+	where part3.cust = part4.cust and part3.total = part4.min_t
+)
+
+select mfp.cust, mfp.prod as most_fav_prod, lfp.prod as least_fav_prod, mfs.state as most_fav_st, lfs.state as least_fav_st
+from mostfavprod as mfp, leastfavprod as lfp, mostfavstate as mfs, leastfavstate as lfs
+where mfp.cust = lfp.cust and lfp.cust = mfs.cust and mfs.cust = lfs.cust 
+
+------------------------------------------------------------------------------------------------
+Query 5:
+WITH
+part as (
+	select cust, prod, sum(quant) as total, avg(quant) as average, count(quant) as count
+	from sales
+	group by cust, prod
+),
+quarter1 as (
+	select cust, prod, sum(quant) as q1_tot
+	from sales
+	where month between 1 and 3
+	group by cust, prod
+),
+quarter2 as (
+	select cust, prod, sum(quant) as q2_tot
+	from sales
+	where month between 4 and 6
+	group by cust, prod
+),
+quarter3 as (
+	select cust, prod, sum(quant) as q3_tot
+	from sales
+	where month between 7 and 9
+	group by cust, prod
+),
+quarter4 as (
+	select cust, prod, sum(quant) as q4_tot
+	from sales
+	where month between 10 and 12
+	group by cust, prod
+)
+select part.cust as customer, part.prod as product, q1_tot, q2_tot, q3_tot, q4_tot, average, total, count
+from part, quarter1, quarter2, quarter3, quarter4
+where
+part.prod = quarter1.prod and part.cust = quarter1.cust AND part.prod = quarter2.prod and part.cust = quarter2.cust AND
+part.prod = quarter3.prod and part.cust = quarter3.cust AND part.prod = quarter4.prod and part.cust = quarter4.cust
+------------------------------------------------------------------------------------------------

@@ -1,0 +1,119 @@
+Done by: Mansi Mistry, CWID: 20011402
+------------------------------------------------------------------------------------------------
+Query 1: 
+WITH
+part1 as (
+	select cust, prod, month, state, round(avg(quant),0) as cust_avg
+	from sales
+	group by cust, prod, month, state
+), 
+part2 as ( 
+	select p1.cust, p1.prod, p1.month, p1.state, round(avg(p2.quant),0) as other_prod_avg
+	from sales p1, sales p2
+	where p1.cust = p2.cust and p1.prod != p2.prod and p1.month = p2.month and p1.state = p2.state
+	group by p1.cust, p1.prod, p1.month, p1.state
+),
+part3 as ( 
+	select p1.cust, p1.prod, p1.month, p1.state, round(avg(p2.quant),0) as other_month_avg
+	from sales p1, sales p2
+	where p1.cust = p2.cust and p1.prod = p2.prod and p1.month != p2.month and p1.state = p2.state
+	group by p1.cust, p1.prod, p1.month, p1.state
+),
+part4 as ( 
+	select p1.cust, p1.prod, p1.month, p1.state, round(avg(p2.quant),0) as other_state_avg
+	from sales p1, sales p2
+	where p1.cust = p2.cust and p1.prod = p2.prod and p1.month = p2.month and p1.state != p2.state
+	group by p1.cust, p1.prod, p1.month, p1.state
+)
+select p1.cust as customer, p1.prod as product, p1.month, p1.state, p1.cust_avg, p2.other_prod_avg, p3.other_month_avg, p4.other_state_avg
+from part1 p1, part2 p2, part3 p3, part4 p4
+where p1.cust = p2.cust and p2.cust = p3.cust and p3.cust = p4.cust and 
+p1.prod = p2.prod and p2.prod = p3.prod and p3.prod = p4.prod and 
+p1.month = p2.month and p2.month = p3.month and p3.month = p4.month and 
+p1.state = p2.state and p2.state = p3.state and p3.state = p4.state
+order by p1.cust, p1.prod, p1.month, p1.state
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+Query 2: 
+WITH
+part1 as (
+	select cust, prod, state, month
+	from sales
+	group by cust, prod, state, month
+),
+part2 as (
+	select p1.cust, p1.prod, p1.month, round(avg(p2.quant),0) as before_sales
+	from part1 p1, sales p2
+	where p1.cust = p2.cust and p1.prod = p2.prod 
+	and p1.state = p2.state and p2.month = p1.month - 1
+	group by p1.cust, p1.prod, p1.month
+),
+part3 as (
+	select p1.cust, p1.prod, p1.month, round(avg(p2.quant),0) as after_sales
+	from part1 p1, sales p2
+	where p1.cust = p2.cust and p1.prod = p2.prod 
+	and p1.state = p2.state and p2.month = p1.month + 1
+	group by p1.cust, p1.prod, p1.month
+)
+select p1.cust as customer, p1.prod as product, p1.state, p1.month, p2.before_sales as before_avg, p3.after_sales as after_avg
+from part1 p1 left join part2 p2 
+on p1.cust = p2.cust and p1.prod = p2.prod and p1.month = p2.month
+left join part3 p3
+on p1.cust = p3.cust and p1.prod = p3.prod and p1.month = p3.month
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+Query 3: 
+WITH
+part1 as (
+	select s.prod, s.quant, (
+		select count(*) 
+		from sales 
+		where prod = s.prod and quant<=s.quant
+	) as mediancount
+	from sales s
+	order by s.prod, mediancount
+),
+part2 as (
+	select prod, (max(mediancount)/2 + 1) as midquant
+	from part1
+	group by prod
+),
+part3 as (
+	select p1.prod, p1.quant
+	from part1 p1, part2 p2
+	where p1.prod =  p2.prod and p1.mediancount >= p2.midquant
+	order by p1.prod, p1.quant
+)
+select part3.prod as product, min(part3.quant) as "median quant"
+from part3
+group by prod
+------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+Query 4: 
+with 
+part1 as (
+	select cust, prod, month, sum(quant) as sum_quant
+	from sales
+	group by cust, prod, month
+),
+part2 as (
+	select p1.prod, p1.cust, p1.month, sum(p2.sum_quant) as temp_sum
+	from part1 as p1, part1 as p2
+	where p1.cust = p2.cust and p1.prod = p2.prod and p1.month >= p2.month
+	group by p1.cust, p1.prod, p1.month
+),
+part3 as (
+	select cust, prod, sum(quant) * 0.75 as percentile
+	from sales
+	group by cust, prod
+),
+part4 as (
+	select p2.cust, p2.prod, p2.month, p2.temp_sum, p3.percentile
+	from part2 p2, part3 p3
+	where p2.cust = p3.cust and p2.prod = p3.prod and p2.temp_sum >= p3.percentile
+)
+select cust as CUSTOMER, prod as PRODUCT, min(month) as "75% PURCHASED BY MONTH"
+from part4
+group by cust, prod
+
+
